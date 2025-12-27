@@ -77,6 +77,11 @@ const RequestsKanban: React.FC = () => {
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
+    if (!canUpdateRequest) {
+      alert('You do not have permission to update requests');
+      return;
+    }
+
     const { draggableId, destination } = result;
     const requestId = parseInt(draggableId);
     const newStage = destination.droppableId as MaintenanceRequest['stage'];
@@ -96,9 +101,12 @@ const RequestsKanban: React.FC = () => {
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? { ...r, stage: newStage } : r))
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating request:', error);
-      alert('Failed to update request');
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to update request';
+      alert(errorMessage);
+      // Refresh data on error to revert UI state
+      fetchData();
     }
   };
 
@@ -183,15 +191,16 @@ const RequestsKanban: React.FC = () => {
                       key={request.id}
                       draggableId={request.id.toString()}
                       index={index}
+                      isDragDisabled={!canUpdateRequest}
                     >
                       {(provided, snapshot) => (
                         <Card
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          {...provided.dragHandleProps}
+                          {...(canUpdateRequest ? provided.dragHandleProps : {})}
                           sx={{
                             mb: 2,
-                            cursor: 'pointer',
+                            cursor: canUpdateRequest ? 'grab' : 'default',
                             opacity: snapshot.isDragging ? 0.8 : 1,
                             borderLeft: request.is_overdue ? '4px solid red' : 'none',
                             '&:hover': {
@@ -359,17 +368,19 @@ const RequestsKanban: React.FC = () => {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setOpenDetail(false)}>Close</Button>
-              <Button
-                variant="contained"
-                onClick={async () => {
-                  if (selectedRequest.assigned_technician_id) {
-                    await handleAssign(selectedRequest.id, selectedRequest.assigned_technician_id);
-                  }
-                  setOpenDetail(false);
-                }}
-              >
-                Update
-              </Button>
+              {canUpdateRequest && (
+                <Button
+                  variant="contained"
+                  onClick={async () => {
+                    if (selectedRequest.assigned_technician_id) {
+                      await handleAssign(selectedRequest.id, selectedRequest.assigned_technician_id);
+                    }
+                    setOpenDetail(false);
+                  }}
+                >
+                  Update
+                </Button>
+              )}
             </DialogActions>
           </>
         )}
